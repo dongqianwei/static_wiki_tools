@@ -5,6 +5,7 @@ use File::Basename;
 use Text::Template;
 use Storable;
 use Data::Dump 'dump';
+use subs qw(_gettoken);
 use constant {
         SRCDIR   => './src/',
         TARDIR   => './target/',
@@ -48,14 +49,16 @@ my $metaref = {};$metaref = retrieve METADATA if -e METADATA;
 say "last modified files: @files";
 say "new terms waited for edited:".join ',',keys %{$metaref->{newterms}};
 #if modified, remove from newterms
-delete $metaref->{newterms}{$_} for map {(fileparse $_) =~ s/(.*)\.md/$1/r} @files;
+delete $metaref->{newterms}{$_} for map {_gettoken $_} @files;
 #update modified time
 $metaref->{terms}{$_}{modify} = (stat $_)[9] for @files;
 
 while (@files) {
     my $fname = shift @files;
+    my $token = _gettoken $fname;
     open(my $sfd, '<', $fname);
     open(my $tfd, '>', TARDIR.scalar fileparse $fname =~ s/md$/html/xmsr);
+    say $tfd '<html><body>';
 
     my ($sectionMark, $orderMark, $unorderMark);
     my @sectionStack;
@@ -67,7 +70,7 @@ while (@files) {
         for my $term (@terms) {
             my $srcFileName= SRCDIR.$term.'.md';
             if (!$srcSet{$srcFileName}) {
-                write_file($srcFileName, 'new File');
+                write_file($srcFileName, "### this is a new token, back to :[$token]");
                 #record new created terms;
                 $metaref->{newterms}{$term} = 1;
                 $metaref->{terms}{$srcFileName}{modify} = (stat $srcFileName)[9];
@@ -105,8 +108,14 @@ while (@files) {
             }
         }
     }
+    say $tfd '</body></html>';
     close $sfd;
     close $tfd;
 }
 
+sub _gettoken {
+    my $fname = shift;
+    (fileparse $fname) =~ s/(.*)\.md/$1/r;
+}
+say dump $metaref;
 store $metaref, METADATA;
