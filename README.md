@@ -10,4 +10,6 @@
 + ## head2
 + ### head3
 + ____ hr
-+ blank line : end of paragraph 
++ blank line : end of paragraph
++ +: ordered list
++ *: unordered list

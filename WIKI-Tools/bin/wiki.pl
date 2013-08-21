@@ -22,8 +22,10 @@ my %templateMap = (
                    h2 => Text::Template->new(TYPE=>'STRING',SOURCE=>'<h2>{$line}</h2>'),
                    h3 => Text::Template->new(TYPE=>'STRING',SOURCE=>'<h3>{$line}</h3>'),
                    line => Text::Template->new(TYPE=>'STRING',SOURCE=>'<hr/>'),
-                   section => Text::Template->new(TYPE=>'STRING',SOURCE=>'<p>{$line}</p>'),
-                   );
+                   section => Text::Template->new(TYPE=>'STRING',SOURCE=>'<p>{"@line"}</p>'),
+                   order => Text::Template->new(TYPE=>'STRING',SOURCE=>q[<ol>{my $comb;for my $l (@line){$comb .= '<li>'.$l.'</li>' };$comb}</ol>]),
+                   unorder => Text::Template->new(TYPE=>'STRING',SOURCE=>q[<ul>{my $comb;for my $l (@line){$comb .= '<li>'.$l.'</li>' };$comb}</ul>]),
+);
 
 mkdir SRCDIR unless -d SRCDIR;
 mkdir TARDIR unless -e TARDIR;
@@ -35,53 +37,49 @@ while (@files) {
     open(my $sfd, '<', $fname);
     open(my $tfd, '>', TARDIR.scalar fileparse $fname =~ s/md$/html/xmsr);
 
-    my $sectionMark;
+    my ($sectionMark, $orderMark, $unorderMark);
     my @sectionStack;
     while (<$sfd>) {
         chomp;
         my $line = $_;
 
-        my $tLine;
         my @terms = $line =~ m/\[([^\]]*?)\]/xmsg;
-
-        #process line prefix
-        my ($mode) = $line =~ $headRe;
-        say "mode $mode; line: $line";
-        if ($mode and !$sectionMark) {
-            my $temp = $templateMap{$specTokens{$mode}};
-            $tLine = $line =~ s/$headRe//r;
-            $tLine = $temp->fill_in(HASH => {line => $tLine});
-        }
-        else {
-                $tLine = $line;
-                $sectionMark = 1 unless $line =~ m/^$/msx;
-        }
-
-        #process terms
-        $tLine =~ s|\[([^\]]*?)\]|<a href="./$1.html">$1</a>|mxsg if @terms;
-        $sectionMark = 0 if $tLine =~ m/^$/xsm;
-        say "blank line $." if $tLine =~ m/^$/xsm;;
-        if ($sectionMark) {
-                push @sectionStack, $tLine;
-        }
-        else {
-            if (@sectionStack) {
-                say $tfd $templateMap{section}->fill_in(HASH => {line => join ' ', @sectionStack});
-                @sectionStack = ();
-            }
-            else {
-                say $tfd $tLine;
-            }
-        }
-
         for my $term (@terms) {
             if (not -e $srcSet{$term.'.md'}) {
                 write_file(SRCDIR.$term.'.md', 'new File');
                 unshift @files, SRCDIR.$term.'.md',
             }
         }
+
+        $line =~ s|\[([^\]]*?)\]|<a href="./$1.html">$1</a>|mxsg if @terms;
+
+        #process line prefix
+        if ($sectionMark+$orderMark+$unorderMark == 0) {
+            my ($mode) = $line =~ $headRe;
+            if ($mode) {
+                my $temp = $templateMap{$specTokens{$mode}};
+                $line =~ s/$headRe//;
+                $line = $temp->fill_in(HASH => {line => $line});
+                say $tfd $line;
+            }
+            elsif (!$line =~ /^$/) {
+                $line =~ /^\+/ ? $orderMark   = 1:
+                $line =~ /^\*/ ? $unorderMark = 1:
+                                 do{$sectionMark = 1, push @sectionStack, $line};
+		    }
+        }
+        else {
+            push @sectionStack, $line;
+            if ($line =~ /^$/) {
+                say "@sectionStack";
+                my $sectionType = $sectionMark ? 'section' :
+                                  $orderMark   ? 'order'   :
+                                  $unorderMark ? 'unorder' : die;
+                say $tfd $templateMap{$sectionType}->fill_in(HASH => {line => [@sectionStack]});
+                (@sectionStack, $sectionMark, $orderMark, $unorderMark) =();
+            }
+        }
     }
     close $sfd;
-    say $tfd $templateMap{section}->fill_in(HASH => {line => join ' ', @sectionStack}) if @sectionStack;
     close $tfd;
 }
