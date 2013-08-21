@@ -45,7 +45,7 @@ while (@files) {
 
         my @terms = $line =~ m/\[([^\]]*?)\]/xmsg;
         for my $term (@terms) {
-            if (not -e $srcSet{$term.'.md'}) {
+            if (!$srcSet{$term.'.md'}) {
                 write_file(SRCDIR.$term.'.md', 'new File');
                 unshift @files, SRCDIR.$term.'.md',
             }
@@ -69,7 +69,6 @@ while (@files) {
 		    }
         }
         else {
-            push @sectionStack, $line;
             if ($line =~ /^$/) {
                 say "@sectionStack";
                 my $sectionType = $sectionMark ? 'section' :
@@ -77,6 +76,9 @@ while (@files) {
                                   $unorderMark ? 'unorder' : die;
                 say $tfd $templateMap{$sectionType}->fill_in(HASH => {line => [@sectionStack]});
                 (@sectionStack, $sectionMark, $orderMark, $unorderMark) =();
+            }
+            else {
+                push @sectionStack, $line;
             }
         }
     }
