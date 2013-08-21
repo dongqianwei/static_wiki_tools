@@ -3,9 +3,11 @@ use autodie;
 use File::Slurp;
 use File::Basename;
 use Text::Template;
+use Storable;
 use constant {
-        SRCDIR => './src/',
-        TARDIR => './target/'
+        SRCDIR   => './src/',
+        TARDIR   => './target/',
+        METADATA => 'data.bin',
     };
 
 my %specTokens = (
@@ -23,15 +25,32 @@ my %templateMap = (
                    h3 => Text::Template->new(TYPE=>'STRING',SOURCE=>'<h3>{$line}</h3>'),
                    line => Text::Template->new(TYPE=>'STRING',SOURCE=>'<hr/>'),
                    section => Text::Template->new(TYPE=>'STRING',SOURCE=>'<p>{"@line"}</p>'),
-                   order => Text::Template->new(TYPE=>'STRING',SOURCE=>q[<ol>{my $comb;for my $l (@line){$comb .= '<li>'.$l.'</li>' };$comb}</ol>]),
-                   unorder => Text::Template->new(TYPE=>'STRING',SOURCE=>q[<ul>{my $comb;for my $l (@line){$comb .= '<li>'.$l.'</li>' };$comb}</ul>]),
+                   order => Text::Template->new(TYPE=>'STRING',
+                                                SOURCE=>q[<ol>{my $comb;for my $l (@line){$comb .= '<li>'.$l.'</li>' };
+                                                  $comb}</ol>]),
+                   unorder => Text::Template->new(TYPE=>'STRING',
+                                                  SOURCE=>q[<ul>{my $comb;for my $l (@line){$comb .= '<li>'.$l.'</li>' };
+                                                  $comb}</ul>]),
 );
 
 mkdir SRCDIR unless -d SRCDIR;
 mkdir TARDIR unless -e TARDIR;
 
-my %srcSet = map {$_, 1} glob(SRCDIR.'*.md');
-my @files = keys %srcSet;
+my @files = glob(SRCDIR.'*.md');
+my %srcSet = map {$_, 1} @files;
+
+#get metadata
+my $metaref = {};$metaref = retrieve METADATA if -e METADATA;
+
+#grep modified files
+@files = grep {(stat $_)[9] != $metaref->{terms}{$_}{modify}} @files if keys %{$metaref};
+say "last modified files: @files";
+say "new terms waited for edited:".join ',',keys %{$metaref->{newterms}};
+#if modified, remove from newterms
+delete $metaref->{newterms}{$_} for grep {(fileparse $_) =~ s/(.*).md/$1/r} @files;
+#update modified time
+$metaref->{terms}{$_}{modify} = (stat $_)[9] for @files;
+
 while (@files) {
     my $fname = shift @files;
     open(my $sfd, '<', $fname);
@@ -45,8 +64,10 @@ while (@files) {
 
         my @terms = $line =~ m/\[([^\]]*?)\]/xmsg;
         for my $term (@terms) {
-            if (!$srcSet{$term.'.md'}) {
+            if (!$srcSet{SRCDIR.$term.'.md'}) {
                 write_file(SRCDIR.$term.'.md', 'new File');
+                #record new created terms;
+                $metaref->{newterms}{$term} = 1;
                 unshift @files, SRCDIR.$term.'.md',
             }
         }
@@ -70,7 +91,6 @@ while (@files) {
         }
         else {
             if ($line =~ /^$/) {
-                say "@sectionStack";
                 my $sectionType = $sectionMark ? 'section' :
                                   $orderMark   ? 'order'   :
                                   $unorderMark ? 'unorder' : die;
@@ -85,3 +105,6 @@ while (@files) {
     close $sfd;
     close $tfd;
 }
+
+
+store $metaref, METADATA;
