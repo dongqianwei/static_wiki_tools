@@ -4,6 +4,7 @@ use File::Slurp;
 use File::Basename;
 use Text::Template;
 use Storable;
+use Data::Dump 'dump';
 use constant {
         SRCDIR   => './src/',
         TARDIR   => './target/',
@@ -47,7 +48,7 @@ my $metaref = {};$metaref = retrieve METADATA if -e METADATA;
 say "last modified files: @files";
 say "new terms waited for edited:".join ',',keys %{$metaref->{newterms}};
 #if modified, remove from newterms
-delete $metaref->{newterms}{$_} for grep {(fileparse $_) =~ s/(.*).md/$1/r} @files;
+delete $metaref->{newterms}{$_} for map {(fileparse $_) =~ s/(.*)\.md/$1/r} @files;
 #update modified time
 $metaref->{terms}{$_}{modify} = (stat $_)[9] for @files;
 
@@ -64,11 +65,13 @@ while (@files) {
 
         my @terms = $line =~ m/\[([^\]]*?)\]/xmsg;
         for my $term (@terms) {
-            if (!$srcSet{SRCDIR.$term.'.md'}) {
-                write_file(SRCDIR.$term.'.md', 'new File');
+            my $srcFileName= SRCDIR.$term.'.md';
+            if (!$srcSet{$srcFileName}) {
+                write_file($srcFileName, 'new File');
                 #record new created terms;
                 $metaref->{newterms}{$term} = 1;
-                unshift @files, SRCDIR.$term.'.md',
+                $metaref->{terms}{$srcFileName}{modify} = (stat $srcFileName)[9];
+                unshift @files, $srcFileName,
             }
         }
 
@@ -105,6 +108,5 @@ while (@files) {
     close $sfd;
     close $tfd;
 }
-
 
 store $metaref, METADATA;
