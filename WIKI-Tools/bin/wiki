@@ -1,0 +1,2 @@
+use App::Wiki;
+App::Wiki->run(@ARGV);

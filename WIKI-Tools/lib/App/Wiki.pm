@@ -1,3 +1,4 @@
+package App::Wiki;
 use v5.16;
 use autodie;
 use File::Slurp;
@@ -5,7 +6,9 @@ use File::Basename;
 use Text::Template;
 use Storable;
 use Data::Dump 'dump';
-use subs qw(_gettoken init _processSrc _getSrc);
+use parent 'Exporter';
+our @EXPORT = 'run';
+use subs qw(_gettoken _process _init _processSrc _getSrc _help _getnewterm);
 use constant {
         SRCDIR   => './src/',
         TARDIR   => './target/',
@@ -35,42 +38,66 @@ my %templateMap = (
                                                   $comb}</ul>]),
 );
 
-sub init {
-    do{mkdir SRCDIR;write_file(_getSrc('index'), "# welcome to use static wiki")} unless -d SRCDIR;
-    mkdir TARDIR unless -e TARDIR;
-}
-
-init();
-
-my @files = glob(SRCDIR.'*.md');
-
-#get metadata
 my $metaref = {};$metaref = retrieve METADATA if -e METADATA;
 
-#grep modified files
-@files = grep {(stat $_)[9] != $metaref->{terms}{$_}{modify}} @files if keys %{$metaref};
-say "last modified files: @files";
-say "new terms waited for edited:".join ',',keys %{$metaref->{newterms}};
-#if modified, remove from newterms
-delete $metaref->{newterms}{$_} for map {_gettoken $_} @files;
-#update modified time
-$metaref->{terms}{$_}{modify} = (stat $_)[9] for @files;
+sub run {
+    my ($class, $command) = @_;
+    $command eq 'init'? _init() :
+    $command eq 'process'? _process():
+    $command eq 'new'? _getnewterm: _help();
+}
 
-while (@files) {
-    my $fname = shift @files;
-    my $token = _gettoken $fname;
-    my @terms = _processSrc $fname;
-    #new terms in current line
-    @terms = map {_gettoken $_} grep {!exists $metaref->{terms}{$_}} map {_getSrc $_} @terms;
-    for my $term (@terms) {
-        say "add new term :$term";
-        my $srcFileName= _getSrc $term;
-        write_file($srcFileName, "### this is a new token, back to :[$token]");
-        #record new created terms;
-        $metaref->{newterms}{$term} = 1;
-        $metaref->{terms}{$srcFileName}{modify} = (stat $srcFileName)[9];
-        unshift @files, $srcFileName,
+sub _help {
+    say <<HELP;
+init => init the wiki system;
+process => process;
+new => show new terms
+HELP
+}
+
+sub _getnewterm {
+    say 'new terms wait for being edit:';
+    say join ',', keys $metaref->{newterms};
+    say;
+}
+
+sub _init {
+    do{mkdir SRCDIR;write_file(_getSrc('index'), "# welcome to use static wiki")} unless -d SRCDIR;
+    mkdir TARDIR unless -e TARDIR;
+    say "init succeed!";
+}
+
+
+sub _process {
+    my @files = glob(SRCDIR.'*.md');
+    #grep modified files
+    @files = grep {(stat $_)[9] != $metaref->{terms}{$_}{modify}} @files if keys %{$metaref};
+    #say "last modified files: @files";
+    #say "new terms waited for edited:".join ',',keys %{$metaref->{newterms}};
+    #if modified, remove from newterms
+    delete $metaref->{newterms}{$_} for map {_gettoken $_} @files;
+    #update modified time
+    $metaref->{terms}{$_}{modify} = (stat $_)[9] for @files;
+
+    while (@files) {
+        my $fname = shift @files;
+        my $token = _gettoken $fname;
+        my @terms = _processSrc $fname;
+        #new terms in current line
+        @terms = map {_gettoken $_} grep {!exists $metaref->{terms}{$_}} map {_getSrc $_} @terms;
+        for my $term (@terms) {
+            say "add new term :$term";
+            my $srcFileName= _getSrc $term;
+            write_file($srcFileName, "### this is a new token, back to :[$token]");
+            #record new created terms;
+            $metaref->{newterms}{$term} = 1;
+            $metaref->{terms}{$srcFileName}{modify} = (stat $srcFileName)[9];
+            unshift @files, $srcFileName,
+        }
     }
+
+    store $metaref, METADATA;
+    say "process finished";
 }
 
 sub _gettoken {
@@ -134,5 +161,4 @@ sub _processSrc {
     @terms;
 }
 
-say dump $metaref;
-store $metaref, METADATA;
+1;

@@ -1,6 +1,6 @@
 this wiki system use a simple markup language feels like markdown, this sample file will show how to use the system to you.
 
-# this line is h1 element becasue of the leading '#' 
+# this line is h1 element becasue of the leading `#`
 ## this line is h2 for the same reason, just like markdown as you see
 ### no suprise, h3 element
 
@@ -8,7 +8,7 @@ if you want to have a new paragraph, just write things, but remember to leave a 
 
 as you see, this is the second paragraph.
 
-### if you want an hr element, just four '_' from head of the line 
+### if you want an hr element, just four `_` ahead of the line
 ____
 
 ### ordered list and unordered list is a little different from markdown,you must use '+' or '*" in a single line with list items following it, a blank will end the list.
