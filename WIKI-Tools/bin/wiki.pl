@@ -5,7 +5,7 @@ use File::Basename;
 use Text::Template;
 use Storable;
 use Data::Dump 'dump';
-use subs qw(_gettoken);
+use subs qw(_gettoken init _processSrc _getSrc);
 use constant {
         SRCDIR   => './src/',
         TARDIR   => './target/',
@@ -35,8 +35,12 @@ my %templateMap = (
                                                   $comb}</ul>]),
 );
 
-mkdir SRCDIR unless -d SRCDIR;
-mkdir TARDIR unless -e TARDIR;
+sub init {
+    mkdir SRCDIR unless -d SRCDIR;
+    mkdir TARDIR unless -e TARDIR;
+}
+
+init();
 
 my @files = glob(SRCDIR.'*.md');
 my %srcSet = map {$_, 1} @files;
@@ -56,29 +60,46 @@ $metaref->{terms}{$_}{modify} = (stat $_)[9] for @files;
 while (@files) {
     my $fname = shift @files;
     my $token = _gettoken $fname;
+    my @terms = _processSrc $fname;
+    #new terms in current line
+    @terms = map {_gettoken $_} grep {!$srcSet{$_}} map {_getSrc $_} @terms;
+    for my $term (@terms) {
+        say "add new term :$term";
+        my $srcFileName= _getSrc $term;
+        write_file($srcFileName, "### this is a new token, back to :[$token]");
+        #record new created terms;
+        $metaref->{newterms}{$term} = 1;
+        $metaref->{terms}{$srcFileName}{modify} = (stat $srcFileName)[9];
+        unshift @files, $srcFileName,
+    }
+}
+
+sub _gettoken {
+    my $fname = shift;
+    (fileparse $fname) =~ s/(.*)\.md/$1/r;
+}
+
+sub _getSrc {
+    my $token = shift;
+    SRCDIR.$token.'.md';
+}
+
+sub _processSrc {
+    my $fname = shift;
     open(my $sfd, '<', $fname);
     open(my $tfd, '>', TARDIR.scalar fileparse $fname =~ s/md$/html/xmsr);
     say $tfd '<html><body>';
 
     my ($sectionMark, $orderMark, $unorderMark);
+    my @terms;
     my @sectionStack;
     while (<$sfd>) {
         chomp;
         my $line = $_;
-
-        my @terms = $line =~ m/\[([^\]]*?)\]/xmsg;
-        for my $term (@terms) {
-            my $srcFileName= SRCDIR.$term.'.md';
-            if (!$srcSet{$srcFileName}) {
-                write_file($srcFileName, "### this is a new token, back to :[$token]");
-                #record new created terms;
-                $metaref->{newterms}{$term} = 1;
-                $metaref->{terms}{$srcFileName}{modify} = (stat $srcFileName)[9];
-                unshift @files, $srcFileName,
-            }
-        }
-
-        $line =~ s|\[([^\]]*?)\]|<a href="./$1.html">$1</a>|mxsg if @terms;
+        #collect terms in current line
+        unshift @terms, @{[$line =~ m/\[([^\]]*?)\]/xmsg]};
+        #change term to link
+        $line =~ s|\[([^\]]*?)\]|<a href="./$1.html">$1</a>|mxsg;
 
         #process line prefix
         if ($sectionMark+$orderMark+$unorderMark == 0) {
@@ -111,11 +132,8 @@ while (@files) {
     say $tfd '</body></html>';
     close $sfd;
     close $tfd;
+    @terms;
 }
 
-sub _gettoken {
-    my $fname = shift;
-    (fileparse $fname) =~ s/(.*)\.md/$1/r;
-}
 say dump $metaref;
 store $metaref, METADATA;
