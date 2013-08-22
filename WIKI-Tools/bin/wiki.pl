@@ -36,7 +36,7 @@ my %templateMap = (
 );
 
 sub init {
-    mkdir SRCDIR unless -d SRCDIR;
+    do{mkdir SRCDIR;write_file(_getSrc('index'), "# welcome to use static wiki")} unless -d SRCDIR;
     mkdir TARDIR unless -e TARDIR;
 }
 
@@ -62,7 +62,7 @@ while (@files) {
     my $token = _gettoken $fname;
     my @terms = _processSrc $fname;
     #new terms in current line
-    @terms = map {_gettoken $_} grep {!$srcSet{$_}} map {_getSrc $_} @terms;
+    @terms = map {_gettoken $_} grep {!exists $metaref->{terms}{$_}} map {_getSrc $_} @terms;
     for my $term (@terms) {
         say "add new term :$term";
         my $srcFileName= _getSrc $term;
