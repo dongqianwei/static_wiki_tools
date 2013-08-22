@@ -43,7 +43,6 @@ sub init {
 init();
 
 my @files = glob(SRCDIR.'*.md');
-my %srcSet = map {$_, 1} @files;
 
 #get metadata
 my $metaref = {};$metaref = retrieve METADATA if -e METADATA;
