@@ -6,6 +6,7 @@ use File::Basename;
 use Text::Template;
 use Storable;
 use Data::Dump 'dump';
+use Date::Format;
 use parent 'Exporter';
 our @EXPORT = 'run';
 use subs qw(_gettoken _process _init _processSrc _getSrc _help _getnewterm);
@@ -36,6 +37,7 @@ my %templateMap = (
                    unorder => Text::Template->new(TYPE=>'STRING',
                                                   SOURCE=>q[<ul>{my $comb;for my $l (@line){$comb .= '<li>'.$l.'</li>' };
                                                   $comb}</ul>]),
+                   status => Text::Template->new(TYPE=>'STRING', SOURCE => '<hr/><p>last modify time:{$time}<p>'),
 );
 
 my $metaref = {};$metaref = retrieve METADATA if -e METADATA;
@@ -155,6 +157,7 @@ sub _processSrc {
             }
         }
     }
+    say $tfd $templateMap{status}->fill_in(HASH=>{time => +time2str('%C', $metaref->{terms}{$fname}{modify})});
     say $tfd '</body></html>';
     close $sfd;
     close $tfd;

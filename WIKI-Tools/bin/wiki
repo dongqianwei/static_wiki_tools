@@ -1,2 +1,23 @@
+#!perl
+use strict;
 use App::Wiki;
 App::Wiki->run(@ARGV);
+
+__END__
+
+=head1 NAME
+
+wiki - static wiki manage tool.
+
+=head1 SYNOPSIS
+
+wiki command syntax:
+
+    wiki <command>
+
+Commands:
+
+    init           Initialize static wiki.
+
+    process        process md files
+    new            show uneditd new tokens
