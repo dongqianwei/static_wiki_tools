@@ -16,6 +16,13 @@ use constant {
         METADATA => 'data.bin',
     };
 
+my $headcontent = <<HEAD;
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Tiny wiki</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+HEAD
+
 my %specTokens = (
         '#'   => 'h1',
         '##'  => 'h2',
@@ -116,7 +123,9 @@ sub _processSrc {
     my $fname = shift;
     open(my $sfd, '<', $fname);
     open(my $tfd, '>', TARDIR.scalar fileparse $fname =~ s/md$/html/xmsr);
-    say $tfd '<html><body>';
+    say $tfd "<html>
+    <head>$headcontent</head>
+    <body>";
 
     my ($sectionMark, $orderMark, $unorderMark);
     my @terms;
