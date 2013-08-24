@@ -7,9 +7,10 @@ use Text::Template;
 use Storable;
 use Data::Dump 'dump';
 use Date::Format;
+use Getopt::Long;
 use parent 'Exporter';
 our @EXPORT = 'run';
-use subs qw(_gettoken _process _init _processSrc _getSrc _help _getnewterm);
+use subs qw(_gettoken _process _init _processSrc _getSrc _getTar _help _getnewterm _config _save);
 use constant {
         SRCDIR   => './src/',
         TARDIR   => './target/',
@@ -50,10 +51,20 @@ my %templateMap = (
 my $metaref = {};$metaref = retrieve METADATA if -e METADATA;
 
 sub run {
-    my ($class, $command) = @_;
+    my ($class, $command, @args) = @_;
     $command eq 'init'? _init() :
     $command eq 'process'? _process():
-    $command eq 'new'? _getnewterm: _help();
+    $command eq 'new'? _getnewterm:
+    $command eq 'config'? _config(@args):
+    $command eq 'dump'? dump $metaref: _help();
+}
+
+sub _config {
+    local @ARGV = @_;
+    GetOptions(
+               'target=s' => \$metaref->{config}{target},
+               );
+    _save;
 }
 
 sub _help {
@@ -61,6 +72,8 @@ sub _help {
 init => init the wiki system;
 process => process;
 new => show new terms
+config => config [target]
+dump => dump data.bin
 HELP
 }
 
@@ -72,10 +85,10 @@ sub _getnewterm {
 
 sub _init {
     do{mkdir SRCDIR;write_file(_getSrc('index'), "# welcome to use static wiki")} unless -d SRCDIR;
-    mkdir TARDIR unless -e TARDIR;
+    my $tardir = $metaref->{config}{target} || TARDIR;
+    mkdir $tardir unless -e $tardir;
     say "init succeed!";
 }
-
 
 sub _process {
     my @files = glob(SRCDIR.'*.md');
@@ -104,14 +117,17 @@ sub _process {
             unshift @files, $srcFileName,
         }
     }
-
-    store $metaref, METADATA;
+    _save
     say "process finished";
+}
+
+sub _save {
+    store $metaref, METADATA;
 }
 
 sub _gettoken {
     my $fname = shift;
-    (fileparse $fname) =~ s/(.*)\.md/$1/r;
+    (fileparse $fname) =~ s/(.*)\.(md|html)/$1/r;
 }
 
 sub _getSrc {
@@ -119,10 +135,16 @@ sub _getSrc {
     SRCDIR.$token.'.md';
 }
 
+sub _getTar {
+    my $token = shift;
+    defined $metaref->{config}{target}?$metaref->{config}{target}.'/'.$token.'.html':TARDIR.$token.'.html';
+}
+
+#parse *.md file
 sub _processSrc {
     my $fname = shift;
     open(my $sfd, '<', $fname);
-    open(my $tfd, '>', TARDIR.scalar fileparse $fname =~ s/md$/html/xmsr);
+    open(my $tfd, '>', _getTar _gettoken $fname);
     say $tfd "<html>
     <head>$headcontent</head>
     <body>";
