@@ -61,9 +61,13 @@ sub run {
 }
 
 sub _delete {
+    #no params, delete ''
+    unshift @_, '' unless @_;
     for my $deltoken (@_) {
         delete $metaref->{terms}{+_getSrc $deltoken};
         delete $metaref->{newterms}{$deltoken};
+        unlink _getSrc $deltoken if -e _getSrc $deltoken;
+        unlink _getTar $deltoken if -e _getTar $deltoken;
     }
     _save;
 }
