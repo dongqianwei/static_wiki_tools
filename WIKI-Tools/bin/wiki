@@ -23,3 +23,4 @@ Commands:
     new            show uneditd new tokens
     config         configuation, currently support target directory configuation
     dump           see structure of data.bin
+    delete         delete term

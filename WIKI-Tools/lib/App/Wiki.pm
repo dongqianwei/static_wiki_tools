@@ -10,7 +10,7 @@ use Date::Format;
 use Getopt::Long;
 use parent 'Exporter';
 our @EXPORT = 'run';
-use subs qw(_gettoken _process _init _processSrc _getSrc _getTar _help _getnewterm _config _save);
+use subs qw(_gettoken _process _init _processSrc _getSrc _getTar _help _getnewterm _config _save _delete);
 use constant {
         SRCDIR   => './src/',
         TARDIR   => './target/',
@@ -56,7 +56,16 @@ sub run {
     $command eq 'process'? _process():
     $command eq 'new'? _getnewterm:
     $command eq 'config'? _config(@args):
+    $command eq 'delete'? _delete(@args):
     $command eq 'dump'? dump $metaref: _help();
+}
+
+sub _delete {
+    for my $deltoken (@_) {
+        delete $metaref->{terms}{+_getSrc $deltoken};
+        delete $metaref->{newterms}{$deltoken};
+    }
+    _save;
 }
 
 sub _config {
@@ -74,6 +83,7 @@ process => process;
 new => show new terms
 config => config [target]
 dump => dump data.bin
+delete => delete tokens
 HELP
 }
 
@@ -156,9 +166,11 @@ sub _processSrc {
         chomp;
         my $line = $_;
         #collect terms in current line
-        unshift @terms, @{[$line =~ m/\[([^\]]*?)\]/xmsg]};
+        unshift @terms, @{[$line =~ m/[^\\]\[([^\]]*?)\]/xmsg]};
         #change term to link
-        $line =~ s|\[([^\]]*?)\]|<a href="./$1.html">$1</a>|mxsg;
+        #espace \[]
+        $line =~ s|[^\\]\[([^\]]*?)\]|<a href="./$1.html">$1</a>|mxsg;
+        $line =~ s|\\(\[)|$1|mxsg;
 
         #process line prefix
         if ($sectionMark+$orderMark+$unorderMark == 0) {
